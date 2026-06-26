@@ -1,0 +1,13 @@
+node_modules/
+.env
+.DS_Store
+Thumbs.db
+*.log
+dist/
+
+# Map Data Files
+data/*.pmtiles
+data/*.mbtiles
+data/*.geojson
+pmtiles.exe  
+ 

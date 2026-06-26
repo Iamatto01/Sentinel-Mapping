@@ -1,0 +1,12 @@
+{
+  "name": "sentinal-mapping",
+  "version": "1.0.0",
+  "description": "Hybrid Mapping Platform for electoral constituency N56 — Pin markers + interactive polygon lot maps powered by live Google Sheets CSV.",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx -y serve . -l 3000",
+    "dev": "npx -y serve . -l 3000 --no-clipboard"
+  },
+  "keywords": ["mapping", "gis", "leaflet", "constituency", "electoral"],
+  "license": "MIT"
+}
