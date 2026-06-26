@@ -117,6 +117,23 @@ const Search = (() => {
       });
     });
 
+    // Search custom drawn polygons (unmatched to residents)
+    if (typeof DrawMap !== 'undefined' && DrawMap.searchCustomPolygons) {
+      const customResults = DrawMap.searchCustomPolygons(query);
+      customResults.forEach(({ feature, layer }) => {
+        const houseNum = feature.properties['addr:housenumber'] || feature.properties.housenumber || 'Lot Tanpa Nama';
+        const kat = feature.properties.kategori || 'Tiada Kategori';
+        results.push({
+          type: 'custom_polygon',
+          name: houseNum,
+          address: `Kategori: ${kat}`,
+          rekodMIR: '-',
+          layer,
+          resident: null,
+        });
+      });
+    }
+
     renderResults(results.slice(0, MAX_RESULTS), query);
   }
 
@@ -190,7 +207,7 @@ const Search = (() => {
         result.marker.openPopup();
         PinMap.highlightMarker(result.marker);
       }, 1100);
-    } else if (result.type === 'polygon' && result.layer) {
+    } else if ((result.type === 'polygon' || result.type === 'custom_polygon') && result.layer) {
       // Fly to polygon centroid
       const bounds = result.layer.getBounds();
       if (bounds.isValid()) {

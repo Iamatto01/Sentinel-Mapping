@@ -223,6 +223,9 @@ const DrawMap = (() => {
       updatePopup(layer);
       layer.openPopup();
       savePolygons(activeDrawnItems);
+      
+      // Dispatch event to update stats in sidebar
+      document.dispatchEvent(new CustomEvent('sentinal:polygonsUpdated'));
     }
   }
 
@@ -276,6 +279,9 @@ const DrawMap = (() => {
         addLayerListeners(layer, activeDrawnItems);
       }
     });
+
+    // Update UI Stats
+    document.dispatchEvent(new CustomEvent('sentinal:polygonsUpdated'));
     savePolygons(activeDrawnItems);
   }
 
@@ -321,6 +327,61 @@ const DrawMap = (() => {
     return results;
   }
 
+  function searchCustomPolygons(query) {
+    const results = [];
+    const q = query.toLowerCase().trim();
+    if (!activeDrawnItems) return results;
+
+    activeDrawnItems.eachLayer((layer) => {
+      const feature = layer.feature;
+      if (!feature || !feature.properties) return;
+      const houseNum = feature.properties['addr:housenumber'] || feature.properties.housenumber || '';
+      const kat = feature.properties.kategori || '';
+
+      if (!houseNum && !kat) return;
+
+      const normalized = PolygonMap.normalizeHouseNumber(houseNum);
+      const matchedResidents = allResidents.filter(r => {
+        const rNum = PolygonMap.extractHouseNumber(r.address);
+        return rNum && PolygonMap.normalizeHouseNumber(rNum) === normalized;
+      });
+
+      // Only return as custom if it did NOT match any resident (otherwise findMatchedPolygons handles it)
+      if (matchedResidents.length === 0) {
+        if (houseNum.toLowerCase().includes(q) || kat.toLowerCase().includes(q)) {
+          results.push({ feature, layer });
+        }
+      }
+    });
+    return results;
+  }
+
+  function getCustomPolygonsCount() {
+    let count = 0;
+    if (!activeDrawnItems) return count;
+
+    activeDrawnItems.eachLayer((layer) => {
+      const feature = layer.feature;
+      if (!feature || !feature.properties) return;
+      const houseNum = feature.properties['addr:housenumber'] || feature.properties.housenumber || '';
+      const kat = feature.properties.kategori || '';
+
+      if (houseNum || kat) {
+        const normalized = PolygonMap.normalizeHouseNumber(houseNum);
+        const matchedResidents = allResidents.filter(r => {
+          const rNum = PolygonMap.extractHouseNumber(r.address);
+          return rNum && PolygonMap.normalizeHouseNumber(rNum) === normalized;
+        });
+        
+        // Count it if it's uniquely labeled/custom
+        if (matchedResidents.length === 0) {
+          count++;
+        }
+      }
+    });
+    return count;
+  }
+
   return { 
     init,
     setVisible,
@@ -329,6 +390,8 @@ const DrawMap = (() => {
     saveHouseNum,
     editHouseNum,
     findMatchedPolygons,
+    searchCustomPolygons,
+    getCustomPolygonsCount,
     getCategoryColor
   };
 })();

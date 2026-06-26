@@ -194,6 +194,17 @@ const App = (() => {
 
     let debounceTimer = null;
 
+    const refreshStats = () => {
+      let customCount = 0;
+      if (typeof DrawMap !== 'undefined' && DrawMap.getCustomPolygonsCount) {
+        customCount = DrawMap.getCustomPolygonsCount();
+      }
+      UI.updateStats(state.residents.length, state.pinCount, state.matchedCount + customCount);
+    };
+
+    // Listen for custom polygon updates
+    document.addEventListener('sentinal:polygonsUpdated', refreshStats);
+
     const doSearch = async (val, bbox = null) => {
       const estateName = val || input.value.trim();
       if (!estateName) {
@@ -211,7 +222,7 @@ const App = (() => {
       );
 
       state.matchedCount = result.matched;
-      UI.updateStats(state.residents.length, state.pinCount, state.matchedCount);
+      refreshStats();
     };
 
     // Auto-suggest autocomplete from ArcGIS
