@@ -206,14 +206,15 @@ const App = (() => {
       const result = await PolygonMap.searchTaman(
         estateName,
         state.map,
-        state.residents
+        state.residents,
+        bbox
       );
 
       state.matchedCount = result.matched;
       UI.updateStats(state.residents.length, state.pinCount, state.matchedCount);
     };
 
-    // Auto-suggest autocomplete from Nominatim
+    // Auto-suggest autocomplete from ArcGIS
     input.addEventListener('input', () => {
       clearTimeout(debounceTimer);
       const query = input.value.trim();
@@ -225,20 +226,17 @@ const App = (() => {
 
       debounceTimer = setTimeout(async () => {
         try {
-          // Query OSM Nominatim (filtered around Malaysia region to make it precise & fast)
-          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=99.5,0.8,119.5,7.3&bounded=1&limit=5`;
-          const response = await fetch(url, {
-            headers: { 'User-Agent': 'SentinalMapping/1.0' }
-          });
+          // Query ArcGIS Suggest
+          const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?f=json&text=${encodeURIComponent(query)}&countryCode=MYS&maxSuggestions=5`;
+          const response = await fetch(url);
           if (!response.ok) return;
           const data = await response.json();
 
-          if (data && data.length > 0) {
-            resultsContainer.innerHTML = data
+          if (data && data.suggestions && data.suggestions.length > 0) {
+            resultsContainer.innerHTML = data.suggestions
               .map((item, idx) => {
-                // Try to get clean name, fall back to display_name
-                const name = item.name || item.display_name.split(',')[0];
-                const sub = item.display_name;
+                const name = item.text.split(',')[0];
+                const sub = item.text;
                 return `
                   <div class="search-result-item" data-idx="${idx}">
                     <div class="result-name">📍 ${name}</div>
@@ -251,31 +249,43 @@ const App = (() => {
 
             // Click handler for suggestion item
             resultsContainer.querySelectorAll('.search-result-item').forEach(el => {
-              el.addEventListener('click', () => {
+              el.addEventListener('click', async () => {
                 const idx = parseInt(el.dataset.idx, 10);
-                const chosen = data[idx];
-                const cleanName = chosen.name || chosen.display_name.split(',')[0];
+                const chosen = data.suggestions[idx];
+                const cleanName = chosen.text.split(',')[0];
                 input.value = cleanName;
                 resultsContainer.classList.remove('active');
                 
-                // Fly map to coordinate to let user see it immediately
-                if (chosen.lat && chosen.lon) {
-                  state.map.flyTo([parseFloat(chosen.lat), parseFloat(chosen.lon)], 16);
+                // Fetch exact location via magicKey
+                try {
+                  const candUrl = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&magicKey=${chosen.magicKey}&outSR=4326&maxLocations=1`;
+                  const candRes = await fetch(candUrl);
+                  const candData = await candRes.json();
+                  
+                  if (candData.candidates && candData.candidates.length > 0) {
+                    const ext = candData.candidates[0].extent;
+                    let s = ext.ymin, n = ext.ymax, w = ext.xmin, e = ext.xmax;
+                    
+                    // Expand extent if it's too small (< ~300m)
+                    const latDiff = n - s;
+                    const lonDiff = e - w;
+                    if (latDiff < 0.003) {
+                      const expand = (0.003 - latDiff) / 2;
+                      s -= expand; n += expand;
+                    }
+                    if (lonDiff < 0.003) {
+                      const expand = (0.003 - lonDiff) / 2;
+                      w -= expand; e += expand;
+                    }
+                    
+                    const overpassBbox = [s, w, n, e];
+                    doSearch(cleanName, overpassBbox);
+                  } else {
+                    doSearch(cleanName);
+                  }
+                } catch(e) {
+                  doSearch(cleanName);
                 }
-                
-                // Trigger building footprint search
-                // Nominatim returns boundingbox as [south, north, west, east]
-                // Overpass requires (south, west, north, east)
-                let overpassBbox = null;
-                if (chosen.boundingbox) {
-                  overpassBbox = [
-                    chosen.boundingbox[0], // south
-                    chosen.boundingbox[2], // west
-                    chosen.boundingbox[1], // north
-                    chosen.boundingbox[3]  // east
-                  ];
-                }
-                doSearch(cleanName, overpassBbox);
               });
             });
           } else {
@@ -284,7 +294,7 @@ const App = (() => {
         } catch (err) {
           console.error('[Taman Autocomplete]', err);
         }
-      }, 400);
+      }, 300);
     });
 
     // Close suggestion box on outside click

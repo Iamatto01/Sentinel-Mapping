@@ -22,40 +22,59 @@ const PolygonMap = (() => {
    * @param {L.Map} map
    * @param {Array} residents
    */
-  async function searchTaman(query, map, residents) {
+  async function searchTaman(query, map, residents, overrideBbox = null) {
     if (!query || !map) return { total: 0, matched: 0 };
 
     UI.setTamanSearchLoading(true);
     UI.showToast(`Mencari "${query}"...`, 'info', 3000);
 
     try {
-      const searchQuery = query.toLowerCase().includes('malaysia') ? query : `${query}, Malaysia`;
-      const geocodeUrl = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&singleLine=${encodeURIComponent(searchQuery)}&outSR=4326&maxLocations=1`;
-      
-      const geoRes = await fetch(geocodeUrl);
-      const geoData = await geoRes.json();
+      let south, west, north, east;
 
-      if (!geoData.candidates || geoData.candidates.length === 0) {
-        UI.showToast(`Lokasi "${query}" tidak dijumpai.`, 'error');
-        UI.setTamanSearchLoading(false);
-        return { total: 0, matched: 0 };
+      if (overrideBbox) {
+        [south, west, north, east] = overrideBbox;
+        map.fitBounds([[south, west], [north, east]]);
+      } else {
+        const searchQuery = query.toLowerCase().includes('malaysia') ? query : `${query}, Malaysia`;
+        const geocodeUrl = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&singleLine=${encodeURIComponent(searchQuery)}&outSR=4326&maxLocations=1`;
+        
+        const geoRes = await fetch(geocodeUrl);
+        const geoData = await geoRes.json();
+
+        if (!geoData.candidates || geoData.candidates.length === 0) {
+          UI.showToast(`Lokasi "${query}" tidak dijumpai.`, 'error');
+          UI.setTamanSearchLoading(false);
+          return { total: 0, matched: 0 };
+        }
+
+        const bestMatch = geoData.candidates[0];
+        const extent = bestMatch.extent;
+        
+        if (!extent) {
+          UI.showToast(`Gagal mendapatkan saiz kawasan untuk "${query}".`, 'error');
+          UI.setTamanSearchLoading(false);
+          return { total: 0, matched: 0 };
+        }
+
+        south = extent.ymin;
+        west = extent.xmin;
+        north = extent.ymax;
+        east = extent.xmax;
+
+        // Expand extent if it's too small (< ~300m)
+        const latDiff = north - south;
+        const lonDiff = east - west;
+        if (latDiff < 0.003) {
+          const expand = (0.003 - latDiff) / 2;
+          south -= expand; north += expand;
+        }
+        if (lonDiff < 0.003) {
+          const expand = (0.003 - lonDiff) / 2;
+          west -= expand; east += expand;
+        }
+
+        map.fitBounds([[south, west], [north, east]]);
       }
-
-      const bestMatch = geoData.candidates[0];
-      const extent = bestMatch.extent;
-      
-      if (!extent) {
-        UI.showToast(`Gagal mendapatkan saiz kawasan untuk "${query}".`, 'error');
-        UI.setTamanSearchLoading(false);
-        return { total: 0, matched: 0 };
-      }
-
-      const south = extent.ymin;
-      const west = extent.xmin;
-      const north = extent.ymax;
-      const east = extent.xmax;
-
-      map.fitBounds([[south, west], [north, east]]);
 
       // Step 1: Build Overpass query using bounding box
       const overpassQuery = buildOverpassQuery(null, [south, west, north, east]);
@@ -308,8 +327,16 @@ const PolygonMap = (() => {
    * @returns {string}
    */
   function buildResidentPopup(residents, feature) {
-    const houseNum = feature.properties['addr:housenumber'] || feature.properties.housenumber || '—';
+    const houseNum = feature.properties['addr:housenumber'] || feature.properties.housenumber || '';
     const street = feature.properties['addr:street'] || '';
+    const kategori = feature.properties.kategori || '';
+
+    let katHtml = '';
+    if (kategori) {
+      // Use DrawMap.getCategoryColor if available, else default to primary
+      const katColor = (typeof DrawMap !== 'undefined' && DrawMap.getCategoryColor) ? DrawMap.getCategoryColor(kategori) : 'var(--color-primary)';
+      katHtml = `<div style="margin-bottom:8px;"><span style="background:${katColor || 'var(--color-primary)'}; color:white; padding:3px 6px; border-radius:4px; font-size:0.65rem; font-weight:bold;">${escapeHtml(kategori)}</span></div>`;
+    }
 
     let residentsHTML = residents
       .map(
@@ -340,7 +367,8 @@ const PolygonMap = (() => {
             </div>
           </div>
         </div>
-        <div class="popup-body" style="max-height: 200px; overflow-y: auto;">
+        <div class="popup-body" style="max-height: 200px; overflow-y: auto; padding-top: 12px;">
+          ${katHtml}
           ${residentsHTML}
         </div>
       </div>
@@ -355,10 +383,18 @@ const PolygonMap = (() => {
   function buildEmptyPopup(feature) {
     const houseNum = feature.properties['addr:housenumber'] || feature.properties.housenumber || '';
     const street = feature.properties['addr:street'] || '';
+    const kategori = feature.properties.kategori || '';
+
+    let katHtml = '';
+    if (kategori) {
+      const katColor = (typeof DrawMap !== 'undefined' && DrawMap.getCategoryColor) ? DrawMap.getCategoryColor(kategori) : 'var(--color-primary)';
+      katHtml = `<div style="margin-bottom:8px;"><span style="background:${katColor || 'var(--color-primary)'}; color:white; padding:3px 6px; border-radius:4px; font-size:0.65rem; font-weight:bold;">${escapeHtml(kategori)}</span></div>`;
+    }
 
     return `
       <div class="popup-content">
         <div class="popup-empty">
+          ${katHtml}
           <div class="popup-empty-icon">🏚️</div>
           <div class="popup-empty-text">Tiada Data Penghuni</div>
           ${houseNum
@@ -514,6 +550,7 @@ const PolygonMap = (() => {
     setVisible,
     getMatchedCount,
     buildResidentPopup,
+    buildEmptyPopup,
     extractHouseNumber,
     normalizeHouseNumber,
   };

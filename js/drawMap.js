@@ -10,6 +10,21 @@ const DrawMap = (() => {
   let allResidents = [];
   let activeDrawnItems = null;
 
+  const POLITIK_COLORS = {
+    'PAS': '#10b981',
+    'Bersatu': '#ef4444',
+    'UMNO': '#1d4ed8',
+    'PKR': '#0ea5e9',
+    'DAP': '#ec4899',
+    'Amanah': '#f97316',
+    'Lalang': '#f59e0b',
+    'Tiada Data': '#6b7280'
+  };
+
+  function getCategoryColor(kat) {
+    return POLITIK_COLORS[kat] || null;
+  }
+
   /**
    * Initialize drawing controls and load saved polygons.
    * @param {L.Map} map
@@ -121,22 +136,29 @@ const DrawMap = (() => {
       layer.feature = { type: 'Feature', properties: {} };
     }
     const houseNum = layer.feature.properties.housenumber || layer.feature.properties['addr:housenumber'] || '';
+    const kategori = layer.feature.properties.kategori || '';
+    const catColor = getCategoryColor(kategori);
 
     let popupHTML = '';
-    if (houseNum) {
-      // Find matching residents
-      const normalized = PolygonMap.normalizeHouseNumber(houseNum);
-      const matchedResidents = allResidents.filter(r => {
-        const rNum = PolygonMap.extractHouseNumber(r.address);
-        return rNum && PolygonMap.normalizeHouseNumber(rNum) === normalized;
-      });
+    
+    // Only show display mode if houseNum exists OR kategori exists, AND we are not forcing edit form
+    if ((houseNum || kategori) && !layer._forceEditForm) {
+      // Find matching residents using houseNum if it exists
+      let matchedResidents = [];
+      if (houseNum) {
+        const normalized = PolygonMap.normalizeHouseNumber(houseNum);
+        matchedResidents = allResidents.filter(r => {
+          const rNum = PolygonMap.extractHouseNumber(r.address);
+          return rNum && PolygonMap.normalizeHouseNumber(rNum) === normalized;
+        });
+      }
 
       if (matchedResidents.length > 0) {
-        layer.setStyle({ color: '#ef4444', fillColor: '#ef4444' }); // Red for matched
+        layer.setStyle({ color: catColor || '#ef4444', fillColor: catColor || '#ef4444', fillOpacity: catColor ? 0.6 : 0.2 }); 
         layer.feature.properties['addr:housenumber'] = houseNum;
         popupHTML = PolygonMap.buildResidentPopup(matchedResidents, layer.feature);
       } else {
-        layer.setStyle({ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.1 }); // Blue for unmatched but has data
+        layer.setStyle({ color: catColor || '#3b82f6', fillColor: catColor || '#3b82f6', fillOpacity: catColor ? 0.6 : 0.1 }); 
         layer.feature.properties['addr:housenumber'] = houseNum;
         popupHTML = PolygonMap.buildEmptyPopup(layer.feature);
       }
@@ -144,20 +166,38 @@ const DrawMap = (() => {
       // Add edit button at bottom
       popupHTML += `
         <div style="padding: 10px 16px; border-top: 1px solid var(--color-border); background: rgba(0,0,0,0.1);">
-          <button onclick="DrawMap.editHouseNum(${L.stamp(layer)})" class="btn-taman-search" style="width: 100%; font-size: 0.7rem; padding: 6px;">Ubah No. Rumah / Lot</button>
+          <button onclick="DrawMap.editHouseNum(${L.stamp(layer)})" class="btn-taman-search" style="width: 100%; font-size: 0.7rem; padding: 6px;">Ubah Data / Kategori</button>
         </div>
       `;
     } else {
-      // Form to enter house number
-      layer.setStyle({ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.1 }); // Blue for newly drawn without data
+      // Form to enter house number and category
+      layer.setStyle({ color: catColor || '#3b82f6', fillColor: catColor || '#3b82f6', fillOpacity: catColor ? 0.6 : 0.1 });
+      layer._forceEditForm = false; // Reset flag
+      
+      const selKategori = (val) => kategori === val ? 'selected' : '';
+      
       popupHTML = `
         <div class="popup-content">
           <div class="popup-header">
-            <div class="popup-name">Tetapan Petak Baru</div>
+            <div class="popup-name">Tetapan Petak & Kategori</div>
           </div>
           <div class="popup-body" style="padding: 14px 16px;">
-            <label style="font-size: 0.75rem; color: var(--color-text-muted); display: block; margin-bottom: 6px;">Masukkan No. Rumah / Lot:</label>
-            <input type="text" id="input-housenum-${L.stamp(layer)}" placeholder="Cth: 23A, Lot 15" style="width: 100%; margin-bottom: 10px; padding: 8px; background: rgba(15,23,42,0.8); border: 1px solid var(--color-border); color: white; border-radius: 4px;">
+            <label style="font-size: 0.75rem; color: var(--color-text-muted); display: block; margin-bottom: 6px;">Maklumat / No. Rumah:</label>
+            <input type="text" id="input-housenum-${L.stamp(layer)}" value="${houseNum}" placeholder="Cth: 23A / Yakob" style="width: 100%; margin-bottom: 12px; padding: 8px; background: rgba(15,23,42,0.8); border: 1px solid var(--color-border); color: white; border-radius: 4px;">
+            
+            <label style="font-size: 0.75rem; color: var(--color-text-muted); display: block; margin-bottom: 6px;">Kategori Politik:</label>
+            <select id="input-kategori-${L.stamp(layer)}" style="width: 100%; margin-bottom: 12px; padding: 8px; background: rgba(15,23,42,0.8); border: 1px solid var(--color-border); color: white; border-radius: 4px;">
+              <option value="" ${selKategori('')}>-- Tiada Pilihan --</option>
+              <option value="PAS" ${selKategori('PAS')}>PAS (Hijau)</option>
+              <option value="Bersatu" ${selKategori('Bersatu')}>Bersatu (Merah)</option>
+              <option value="UMNO" ${selKategori('UMNO')}>UMNO (Biru)</option>
+              <option value="PKR" ${selKategori('PKR')}>PKR (Biru Muda)</option>
+              <option value="DAP" ${selKategori('DAP')}>DAP (Pink)</option>
+              <option value="Amanah" ${selKategori('Amanah')}>Amanah (Oren)</option>
+              <option value="Lalang" ${selKategori('Lalang')}>Atas Pagar / Lalang</option>
+              <option value="Tiada Data" ${selKategori('Tiada Data')}>Tiada Data / Lain-lain</option>
+            </select>
+
             <button onclick="DrawMap.saveHouseNum(${L.stamp(layer)})" class="btn-taman-search" style="width: 100%; padding: 8px;">Simpan Data</button>
           </div>
         </div>
@@ -169,12 +209,17 @@ const DrawMap = (() => {
 
   function saveHouseNum(layerId) {
     const layer = activeDrawnItems.getLayer(layerId);
-    const input = document.getElementById(`input-housenum-${layerId}`);
-    if (layer && input) {
-      const val = input.value.trim();
-      if (!val) return;
+    const inputNum = document.getElementById(`input-housenum-${layerId}`);
+    const inputKat = document.getElementById(`input-kategori-${layerId}`);
+    
+    if (layer && inputNum && inputKat) {
+      const valNum = inputNum.value.trim();
+      const valKat = inputKat.value;
+      
       if (!layer.feature) layer.feature = { type: 'Feature', properties: {} };
-      layer.feature.properties.housenumber = val;
+      layer.feature.properties.housenumber = valNum;
+      layer.feature.properties.kategori = valKat;
+      
       updatePopup(layer);
       layer.openPopup();
       savePolygons(activeDrawnItems);
@@ -184,8 +229,7 @@ const DrawMap = (() => {
   function editHouseNum(layerId) {
     const layer = activeDrawnItems.getLayer(layerId);
     if (layer) {
-      // Temporarily clear it so updatePopup shows the input form
-      layer.feature.properties.housenumber = ''; 
+      layer._forceEditForm = true;
       updatePopup(layer);
       layer.openPopup();
     }
@@ -279,10 +323,12 @@ const DrawMap = (() => {
 
   return { 
     init,
+    setVisible,
+    addGeoJSON,
+    savePolygons,
     saveHouseNum,
     editHouseNum,
-    addGeoJSON,
-    setVisible,
-    findMatchedPolygons
+    findMatchedPolygons,
+    getCategoryColor
   };
 })();
