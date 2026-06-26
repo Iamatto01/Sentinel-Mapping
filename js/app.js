@@ -443,29 +443,48 @@ const App = (() => {
       const n = latlng.lat + pad;
       const bbox = `${w},${s},${e_lng},${n}`;
 
-      const baseUrl = 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Malaysia_Building_Footprints/FeatureServer/0/query';
-      const url = `${baseUrl}?f=geojson&where=1=1&geometry=${encodeURIComponent(bbox)}&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true`;
+      // Overpass bbox requires [south, west, north, east]
+      const overpassQuery = `
+        [out:json][timeout:10];
+        (
+          way["building"](${s},${w},${n},${e_lng});
+          relation["building"](${s},${w},${n},${e_lng});
+        );
+        out geom;
+      `;
+      const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
 
       try {
         UI.showToast('Menyalin bangunan...', 'info', 1500);
         const response = await fetch(url);
-        if (!response.ok) return;
-        const data = await response.json();
+        if (!response.ok) {
+           UI.showToast('Gagal menyalin bangunan dari pelayan.', 'error');
+           return;
+        }
+        const osmData = await response.json();
 
-        if (data && data.features && data.features.length > 0) {
-          // Only add the first intersected building to avoid clutter
-          const singleFeature = {
-            type: 'FeatureCollection',
-            features: [data.features[0]]
-          };
+        if (osmData && osmData.elements && osmData.elements.length > 0) {
+          // Convert OSM to GeoJSON using osmtogeojson (already loaded globally)
+          const geojson = osmtogeojson(osmData);
+          if (geojson.features && geojson.features.length > 0) {
+            // Only add the first intersected building to avoid clutter
+            const singleFeature = {
+              type: 'FeatureCollection',
+              features: [geojson.features[0]]
+            };
 
-          if (typeof DrawMap !== 'undefined' && DrawMap.addGeoJSON) {
-            const addedLayers = DrawMap.addGeoJSON(singleFeature);
-            if (addedLayers && addedLayers.length > 0) {
-               addedLayers[0].openPopup();
-               UI.showToast('Berjaya disalin! Sila ubah data.', 'success', 2000);
+            if (typeof DrawMap !== 'undefined' && DrawMap.addGeoJSON) {
+              const addedLayers = DrawMap.addGeoJSON(singleFeature);
+              if (addedLayers && addedLayers.length > 0) {
+                 addedLayers[0].openPopup();
+                 UI.showToast('Berjaya disalin! Sila ubah data.', 'success', 2000);
+              }
             }
+          } else {
+             UI.showToast('Tiada data bangunan OSM di titik ini.', 'info');
           }
+        } else {
+           UI.showToast('Tiada data bangunan OSM di titik ini.', 'info');
         }
       } catch (err) {
         console.error('[MapClick Fetch]', err);
