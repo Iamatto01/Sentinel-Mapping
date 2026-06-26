@@ -67,6 +67,9 @@ const App = (() => {
       DrawMap.init(state.map, state.residents);
     }
 
+    // 8.6 Initialize map click to auto-fetch polygons
+    initMapClickListener();
+
     // 9. All done — hide loader
     UI.hideLoading();
 
@@ -416,6 +419,58 @@ const App = (() => {
         }
       });
     }
+  }
+
+  /**
+   * Listen to map clicks to magically turn PMTiles reference into editable polygons!
+   */
+  function initMapClickListener() {
+    state.map.on('click', async (e) => {
+      // Only do this if they have the PMTiles layer enabled, as a proxy for "I want to click blue lines"
+      const btnPmtiles = document.getElementById('toggle-pmtiles');
+      if (!btnPmtiles || !btnPmtiles.classList.contains('active')) return;
+
+      // Don't trigger if they are currently drawing/editing
+      if (state.map.pm && state.map.pm.globalDrawModeEnabled()) return;
+      if (state.map.pm && state.map.pm.globalEditModeEnabled()) return;
+
+      const latlng = e.latlng;
+      // Build a tiny 5-meter bounding box around the click
+      const pad = 0.00005; 
+      const w = latlng.lng - pad;
+      const s = latlng.lat - pad;
+      const e_lng = latlng.lng + pad;
+      const n = latlng.lat + pad;
+      const bbox = `${w},${s},${e_lng},${n}`;
+
+      const baseUrl = 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Malaysia_Building_Footprints/FeatureServer/0/query';
+      const url = `${baseUrl}?f=geojson&where=1=1&geometry=${encodeURIComponent(bbox)}&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true`;
+
+      try {
+        UI.showToast('Menyalin bangunan...', 'info', 1500);
+        const response = await fetch(url);
+        if (!response.ok) return;
+        const data = await response.json();
+
+        if (data && data.features && data.features.length > 0) {
+          // Only add the first intersected building to avoid clutter
+          const singleFeature = {
+            type: 'FeatureCollection',
+            features: [data.features[0]]
+          };
+
+          if (typeof DrawMap !== 'undefined' && DrawMap.addGeoJSON) {
+            const addedLayers = DrawMap.addGeoJSON(singleFeature);
+            if (addedLayers && addedLayers.length > 0) {
+               addedLayers[0].openPopup();
+               UI.showToast('Berjaya disalin! Sila ubah data.', 'success', 2000);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[MapClick Fetch]', err);
+      }
+    });
   }
 
   return { init };
