@@ -214,14 +214,8 @@ const Search = (() => {
         mapRef.flyToBounds(bounds, { padding: [40, 40], maxZoom: 19, duration: 1 });
 
         setTimeout(() => {
+          // Open popup only (removed permanent color override)
           result.layer.openPopup();
-          // Highlight the polygon
-          result.layer.setStyle({
-            weight: 3,
-            fillOpacity: 0.6,
-            color: '#f97316',
-            fillColor: '#f97316',
-          });
         }, 1100);
       }
     }
