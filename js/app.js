@@ -226,8 +226,9 @@ const App = (() => {
 
       debounceTimer = setTimeout(async () => {
         try {
-          // Query ArcGIS Suggest
-          const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?f=json&text=${encodeURIComponent(query)}&countryCode=MYS&maxSuggestions=5`;
+          // Query ArcGIS Suggest with location bias
+          const center = state.map.getCenter();
+          const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?f=json&text=${encodeURIComponent(query)}&countryCode=MYS&location=${center.lng},${center.lat}&maxSuggestions=5`;
           const response = await fetch(url);
           if (!response.ok) return;
           const data = await response.json();
