@@ -93,6 +93,8 @@ const App = (() => {
       zoomControl: false, // We'll add it in a custom position
       attributionControl: true,
       maxZoom: 24,
+      maxBounds: [[-90, -180], [90, 180]],
+      maxBoundsViscosity: 1.0
     });
 
     // Tile layers
@@ -103,6 +105,7 @@ const App = (() => {
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 24,
         maxNativeZoom: 19,
+        noWrap: true,
       }
     );
 
@@ -113,6 +116,7 @@ const App = (() => {
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
         maxZoom: 24,
         maxNativeZoom: 19,
+        noWrap: true,
       }
     );
 
@@ -122,6 +126,7 @@ const App = (() => {
         attribution: '&copy; Google Maps',
         maxZoom: 24,
         maxNativeZoom: 20,
+        noWrap: true,
       }
     );
 
@@ -174,7 +179,8 @@ const App = (() => {
           paintRules: paintRules,
           pane: 'overlayPane',
           zIndex: 500,
-          maxDataZoom: 15
+          maxDataZoom: 15,
+          noWrap: true
         });
         
         // Dibuang: state.pmTilesLayer.addTo(state.map);
