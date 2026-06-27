@@ -177,8 +177,8 @@ const App = (() => {
           maxDataZoom: 15
         });
         
-        state.pmTilesLayer.addTo(state.map);
-        UI.showToast('Lapisan rujukan bangunan (PMTiles) berjaya dimuatkan.', 'success');
+        // Dibuang: state.pmTilesLayer.addTo(state.map);
+        UI.showToast('Lapisan rujukan bangunan (PMTiles) berjaya dimuatkan. Klik "Garisan Asal" untuk papar.', 'success', 3000);
       }
     } catch (err) {
       console.error('[PMTiles] Error loading vector tiles:', err);
@@ -407,7 +407,7 @@ const App = (() => {
 
     const btnPmtiles = document.getElementById('toggle-pmtiles');
     if (btnPmtiles) {
-      btnPmtiles.classList.add('active');
+      // Dibuang: btnPmtiles.classList.add('active'); - Supaya ia tertutup secara lalai
       btnPmtiles.addEventListener('click', () => {
         btnPmtiles.classList.toggle('active');
         if (state.pmTilesLayer) {
