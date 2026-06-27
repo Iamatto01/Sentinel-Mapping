@@ -50,6 +50,7 @@ const DrawMap = (() => {
       drawPolygon: true,
       editMode: true,
       dragMode: true,
+      rotateMode: true, // Enable rotation!
       cutPolygon: true, // Crucial for "petak2" (cutting big blocks)
       removalMode: true,
     });
@@ -266,7 +267,8 @@ const DrawMap = (() => {
    * Add a GeoJSON FeatureCollection to the editable drawn layer
    */
   function addGeoJSON(geojson) {
-    if (!activeDrawnItems) return;
+    const addedLayers = [];
+    if (!activeDrawnItems) return addedLayers;
     
     L.geoJSON(geojson, {
       style: {
@@ -277,12 +279,15 @@ const DrawMap = (() => {
       onEachFeature: (feature, layer) => {
         activeDrawnItems.addLayer(layer);
         addLayerListeners(layer, activeDrawnItems);
+        addedLayers.push(layer);
       }
     });
 
     // Update UI Stats
     document.dispatchEvent(new CustomEvent('sentinal:polygonsUpdated'));
     savePolygons(activeDrawnItems);
+    
+    return addedLayers;
   }
 
   function setVisible(map, visible) {
