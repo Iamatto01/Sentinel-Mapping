@@ -1,0 +1,4 @@
+const CONFIG = {
+  SUPABASE_URL: 'https://hnfolcxzoaweiaznaomo.supabase.co',
+  SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuZm9sY3h6b2F3ZWlhem5hb21vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1ODE4MzksImV4cCI6MjA5ODE1NzgzOX0.59aqXotCIi2KepdARGVGzIp86bZSD6DJ-SGSkAtPg0A'
+};

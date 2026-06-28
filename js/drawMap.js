@@ -5,7 +5,6 @@
  */
 
 const DrawMap = (() => {
-  const LOCAL_STORAGE_KEY = 'sentinal_drawn_polygons';
 
   let allResidents = [];
   let activeDrawnItems = null;
@@ -240,26 +239,25 @@ const DrawMap = (() => {
   }
 
   /**
-   * Save drawn polygons to localStorage as GeoJSON
+   * Save drawn polygons to Supabase as GeoJSON
    */
-  function savePolygons(drawnItems) {
+  async function savePolygons(drawnItems) {
     const geojson = drawnItems.toGeoJSON();
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(geojson));
+    await SupabaseClient.saveAllPolygons(geojson);
   }
 
   /**
-   * Load drawn polygons from localStorage
+   * Load drawn polygons from Supabase
    */
-  function loadPolygons(map, drawnItems) {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) {
-      try {
-        const geojson = JSON.parse(saved);
+  async function loadPolygons(map, drawnItems) {
+    try {
+      const geojson = await SupabaseClient.fetchPolygons();
+      if (geojson && geojson.features && geojson.features.length > 0) {
         addGeoJSON(geojson);
-        console.log('[DrawMap] Loaded custom polygons from storage.');
-      } catch (e) {
-        console.error('[DrawMap] Error loading polygons from storage', e);
+        console.log('[DrawMap] Loaded custom polygons from Supabase.');
       }
+    } catch (e) {
+      console.error('[DrawMap] Error loading polygons from Supabase', e);
     }
   }
 
